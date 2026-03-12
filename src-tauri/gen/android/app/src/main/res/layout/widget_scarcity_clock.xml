@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center"
+    android:background="#990f172a"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="DAYS" android:textSize="10sp" android:textColor="#64748b"/>
+        <TextView android:id="@+id/textDays" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00" android:textSize="24sp" android:textColor="#ffffff" android:textStyle="bold"/>
+    </LinearLayout>
+
+    <View android:layout_width="1dp" android:layout_height="32dp" android:background="#1e293b" android:layout_marginHorizontal="16dp"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="DEGREES" android:textSize="10sp" android:textColor="#64748b"/>
+        <TextView android:id="@+id/textDegrees" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00" android:textSize="24sp" android:textColor="#22d3ee" android:textStyle="bold"/>
+    </LinearLayout>
+
+    <View android:layout_width="1dp" android:layout_height="32dp" android:background="#1e293b" android:layout_marginHorizontal="16dp"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TWINS" android:textSize="10sp" android:textColor="#64748b"/>
+        <TextView android:id="@+id/textTwins" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00" android:textSize="24sp" android:textColor="#34d399" android:textStyle="bold"/>
+    </LinearLayout>
+
+</LinearLayout>

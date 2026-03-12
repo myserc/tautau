@@ -1,0 +1,78 @@
+name: Release Tauri App
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-latest
+            target: aarch64-linux-android
+            build_cmd: cargo tauri build --target aarch64-linux-android
+            artifact_name: prime-time-android.apk
+            artifact_path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+          - platform: macos-latest
+            target: aarch64-apple-ios
+            build_cmd: cargo tauri build --target aarch64-apple-ios && cd src-tauri/gen/apple/build/Build/Products/Release-iphoneos && zip -r ../../../../../../../prime-time-ios.zip *.app
+            artifact_name: prime-time-ios.zip
+            artifact_path: prime-time-ios.zip
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}, wasm32-unknown-unknown
+
+      - name: Setup Java
+        if: matrix.target == 'aarch64-linux-android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        if: matrix.target == 'aarch64-linux-android'
+        uses: android-actions/setup-android@v3
+
+      - name: Setup NDK
+        if: matrix.target == 'aarch64-linux-android'
+        run: echo "y" | sdkmanager "ndk;25.2.9519653" && echo "NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install trunk and wasm-pack
+        run: |
+          cargo install trunk
+          cargo install wasm-pack
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2.0.0"
+
+      - name: Build Yew Frontend
+        run: |
+          cd src-yew
+          trunk build --release
+
+      - name: Build Tauri App
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload Artifact to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
