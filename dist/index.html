@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prime-Time | Node Operator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
+        :root { --bg-dark: #020617; --panel-bg: rgba(15, 23, 42, 0.6); }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: #e2e8f0; background-image: radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.1) 0%, transparent 50%), linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 100% 100%, 40px 40px, 40px 40px; overflow-x: hidden; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .glass-panel { background: var(--panel-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); }
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 15px rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.3); } 50% { box-shadow: 0 0 25px rgba(34, 211, 238, 0.2); border-color: rgba(34, 211, 238, 0.6); } }
+        .active-standard { animation: pulse-glow 3s infinite; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+<link rel="modulepreload" href="/primetime-node-ui-47eed5f9994599d6.js" crossorigin="anonymous" integrity="sha384-RGjz4lmtc69GHN2NQv2zJGVoidddc+jR8QhmPmx+Gx+S6XjzPvn4McQ/bYOhORD0"><link rel="preload" href="/primetime-node-ui-47eed5f9994599d6_bg.wasm" crossorigin="anonymous" integrity="sha384-zuNAm7jsLn/RwM2DO6fbhITYXIuK+fb2jWlvivAFE/IApGb7NJUPj16UvlgCX9Db" as="fetch" type="application/wasm"></head>
+<body>
+
+<script type="module">
+import init, * as bindings from '/primetime-node-ui-47eed5f9994599d6.js';
+const wasm = await init({ module_or_path: '/primetime-node-ui-47eed5f9994599d6_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>
