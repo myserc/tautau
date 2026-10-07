@@ -1,3 +1,3 @@
 fn main() {
-    println!("PrimeTime Node Engine");
+    primetime_node::run();
 }

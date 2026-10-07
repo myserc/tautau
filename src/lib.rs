@@ -812,9 +812,119 @@ pub mod server {
 }
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use serde::Deserialize;
 use crate::core::CHAIN_ID;
 use crate::ledger::{Event, EventType};
-use crate::server::ServerState;
+use crate::server::{ServerState, SimUpdate};
+
+static IS_MINING: AtomicBool = AtomicBool::new(true);
+static ECO_MODE: AtomicBool = AtomicBool::new(false);
+
+#[derive(Deserialize)]
+pub struct EncryptPayload { pub receiver_pub_key: String, pub plaintext: String }
+
+#[derive(Deserialize)]
+pub struct DecryptPayload { pub ciphertext_base64: String }
+
+pub async fn encrypt_qr_payload(payload: EncryptPayload) -> Result<String, String> {
+    use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit}};
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use curve25519_dalek::edwards::CompressedEdwardsY;
+    use libp2p::PeerId;
+    use libp2p::identity::PublicKey as Libp2pPublicKey;
+    use rand::RngCore;
+    use std::str::FromStr;
+    use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
+
+    let peer_id = PeerId::from_str(&payload.receiver_pub_key).map_err(|_| "Invalid PeerId")?;
+    let peer_bytes = peer_id.to_bytes();
+    if peer_bytes.len() < 2 || peer_bytes[0] != 0x00 { return Err("PeerId missing identity hash".to_string()); }
+
+    let pubkey_bytes = &peer_bytes[2..];
+    let pubkey = Libp2pPublicKey::try_decode_protobuf(pubkey_bytes).map_err(|_| "Failed to decode PublicKey")?;
+    let ed25519_pub = pubkey.try_into_ed25519().map_err(|_| "Not an Ed25519 key")?;
+
+    let ed_point = CompressedEdwardsY(ed25519_pub.to_bytes()).decompress().ok_or("Invalid Edwards point")?;
+    let x25519_pub_bytes = ed_point.to_montgomery().to_bytes();
+    let receiver_x25519_pub = X25519PublicKey::from(x25519_pub_bytes);
+
+    let mut secret_bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut secret_bytes);
+    let ephemeral_secret = StaticSecret::from(secret_bytes);
+    let ephemeral_pub = X25519PublicKey::from(&ephemeral_secret);
+
+    let shared_secret = ephemeral_secret.diffie_hellman(&receiver_x25519_pub);
+    let cipher_key = Key::<Aes256Gcm>::from_slice(shared_secret.as_bytes());
+    let cipher = Aes256Gcm::new(cipher_key);
+
+    let mut nonce_bytes = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
+    let ciphertext = cipher.encrypt(nonce, payload.plaintext.as_bytes()).map_err(|_| "AES encryption failed")?;
+
+    let mut final_payload = Vec::new();
+    final_payload.extend_from_slice(ephemeral_pub.as_bytes());
+    final_payload.extend_from_slice(&nonce_bytes);
+    final_payload.extend_from_slice(&ciphertext);
+
+    Ok(BASE64.encode(final_payload))
+}
+
+pub async fn decrypt_qr_payload(payload: DecryptPayload, state: Arc<ServerState>) -> Result<String, String> {
+    use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit}};
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use sha2::{Digest, Sha512};
+    use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
+
+    let data = BASE64.decode(&payload.ciphertext_base64).map_err(|_| "Invalid Base64 format")?;
+    if data.len() < 32 + 12 + 16 { return Err("Ciphertext too short".to_string()); }
+
+    let mut ephemeral_pub_bytes = [0u8; 32];
+    ephemeral_pub_bytes.copy_from_slice(&data[0..32]);
+    let ephemeral_pub = X25519PublicKey::from(ephemeral_pub_bytes);
+
+    let nonce_bytes = &data[32..44];
+    let nonce = Nonce::from_slice(nonce_bytes);
+    let ciphertext = &data[44..];
+
+    let local_ed25519 = state.keypair.clone().try_into_ed25519().map_err(|_| "Local identity is not Ed25519")?;
+    let secret_bytes = local_ed25519.secret();
+
+    let mut hasher = Sha512::new();
+    hasher.update(secret_bytes);
+    let hash = hasher.finalize();
+
+    let mut x25519_sk_bytes = [0u8; 32];
+    x25519_sk_bytes.copy_from_slice(&hash[0..32]);
+    x25519_sk_bytes[0] &= 248;
+    x25519_sk_bytes[31] &= 127;
+    x25519_sk_bytes[31] |= 64;
+
+    let local_x25519_secret = StaticSecret::from(x25519_sk_bytes);
+    let shared_secret = local_x25519_secret.diffie_hellman(&ephemeral_pub);
+
+    let cipher_key = Key::<Aes256Gcm>::from_slice(shared_secret.as_bytes());
+    let cipher = Aes256Gcm::new(cipher_key);
+
+    let plaintext_bytes = cipher.decrypt(nonce, ciphertext).map_err(|_| "Decryption failed")?;
+    String::from_utf8(plaintext_bytes).map_err(|_| "Decrypted data is not valid UTF-8".to_string())
+}
+
+pub fn toggle_eco_mode(enabled: bool) { ECO_MODE.store(enabled, Ordering::Relaxed); }
+
+pub fn set_mining_state(active: bool) { IS_MINING.store(active, Ordering::Relaxed); }
+
+pub async fn get_state(state: Arc<ServerState>) -> Result<SimUpdate, String> {
+    let update = state.last_sim_update.read().await;
+    Ok(update.clone().unwrap_or(SimUpdate {
+        tick: 0, node_id: state.local_peer_id.clone(), net_entropy: 0, void_events: 0, surplus_events: 0, peer_count: 0,
+        local_vault_books: 0, local_prime_value: 0, local_counts: 0, local_nonce: 0, unit_precedents: std::collections::HashMap::new(),
+        hash_rate: 0, active_heuristic: None, recent_transfers: vec![], external_addrs: vec![], nat_status: "Unknown".to_string(),
+        state_root: "0000000000000000000000000000000000000000000000000000000000000000".to_string(), eco_mode_active: false,
+    }))
+}
 
 pub async fn do_transfer(to: String, amount: u64, unit: crate::core::Unit, state: &Arc<ServerState>) -> Result<String, String> {
     use std::str::FromStr;
@@ -882,4 +992,8 @@ pub async fn do_transfer(to: String, amount: u64, unit: crate::core::Unit, state
     state.mempool.lock().await.push(tx_bytes);
 
     Ok("Transfer pooled".to_string())
+}
+
+pub fn run() {
+    println!("PrimeTime Node Engine running");
 }
